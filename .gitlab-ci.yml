@@ -1,0 +1,41 @@
+stages:
+  - build
+  - test
+
+services:
+  - docker:23.0.5-dind
+
+variables:
+  DOCKER_TLS_CERTDIR: ""
+  DOCKER_DRIVER: overlay
+  DOCKER_HOST: tcp://localhost:2375
+
+
+push-image-to-registry:
+  image: docker:23.0.5
+  stage: build
+
+  script:
+    - echo "$CI_REGISTRY/$CI_PROJECT_PATH:latest"
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" $CI_REGISTRY
+    - echo "waiting docker startup !!!!!!!!!!"
+    - sleep 60
+    - docker info
+    - docker build --build-arg AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID --build-arg AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY --build-arg AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION --network host --pull -t "$CI_REGISTRY/$CI_PROJECT_PATH:latest" -f esa/Dockerfile .
+    - docker push "$CI_REGISTRY/$CI_PROJECT_PATH:latest"
+
+  only:
+    - main
+    - BIOMASS-3163-sardem-sarsen
+
+push-data-to-s3:
+  image: python:3.7
+  stage: test
+
+  script:
+    - pip3 install awscli
+    - echo "Going to push data to s3"
+    - aws s3 cp esa/cwl s3://s3public/cwl/sardem-sarsen --recursive --endpoint https://oss.eu-west-0.prod-cloud-ocb.orange-business.com
+  only:
+    - main
+    - BIOMASS-3163-sardem-sarsen
